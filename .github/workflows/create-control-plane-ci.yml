@@ -1,0 +1,148 @@
+name: Deploy Control Plane
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: sa-east-1
+  EKS_CLUSTER_NAME: algo-trading-plat
+  CLUSTER_DIRECTORY: cluster
+  CONTROL_PLANE_DIRECTORY: imagePullSecret
+  NAMESPACE: control-plane-system
+  RESOURCES_NAMESPACE: resources-system
+  CONTROL_PLANE_ADDONS: https://github.com/luciano-personal-org/cluster-baseline-deployment
+  DEFAULT_WATING_TIME: 2
+  PROJECT: control-plane-project
+  APP: algo-trading-addons
+  IMAGE_SECRETS: img-secret
+
+jobs:
+  deploy:
+    name: Deploy Control Plane
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Install Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_version: 1.5.7
+    
+    - name: Terraform Init
+      working-directory: ${{ env.CLUSTER_DIRECTORY }}
+      run: terraform init -upgrade
+    
+    - name: Terraform Plan
+      working-directory: ${{ env.CLUSTER_DIRECTORY }}
+      run: terraform plan -out terraform.apply.plan
+      # env:
+      #   TF_VAR_github_token: ${{ secrets.GHCR_PASSWORD }}
+      #   TF_VAR_github_username: ${{ secrets.GHCR_USERNAME }}
+      #   TF_VAR_argo_admin_pass: ${{ secrets.ARGO_ADMIN_PASS }}
+      #   TF_VAR_argo_admin_user: ${{ secrets.ARGO_ADMIN_USER }}
+
+    - name: Terraform Apply
+      working-directory: ${{ env.CLUSTER_DIRECTORY }}
+      run: terraform apply -auto-approve terraform.apply.plan
+
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v1
+      with:
+        version: 'v1.21.0'
+
+    - name: Update kubeconfig
+      working-directory: ${{ env.CLUSTER_DIRECTORY }}
+      run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+    - name: Create AWS Secret in Kubernetes
+      working-directory: ${{ env.CLUSTER_DIRECTORY }}
+      run: |
+        echo "[default]" > ./aws-access.txt
+        echo "aws_access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }}" >> ./aws-access.txt
+        echo "aws_secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> ./aws-access.txt
+        if kubectl get namespace ${{ env.RESOURCES_NAMESPACE }} &> /dev/null; then
+            echo "Namespace exists"
+        else
+            echo "Namespace does not exist" 
+            kubectl create namespace ${{ env.RESOURCES_NAMESPACE }}
+        fi
+        if kubectl get secret aws-secret -n ${{ env.RESOURCES_NAMESPACE }} &> /dev/null; then
+            echo "Secret exists"
+        else
+            echo "Secret does not exist" 
+            kubectl create secret generic aws-secret --from-file=creds=./aws-access.txt -n ${{ env.RESOURCES_NAMESPACE }} # TODO: fix it in the future
+        fi 
+
+    - name: Install Helm
+      uses: azure/setup-helm@v1
+      with:
+        version: 'v3.5.0'
+
+    - name: Deploy ArgoCD
+      working-directory: ${{ env.CONTROL_PLANE_DIRECTORY }}
+      timeout-minutes: 7
+      run: |
+        helm repo add argo https://argoproj.github.io/argo-helm; \
+        helm repo update; \
+        helm upgrade --install --wait argocd argo/argo-cd --namespace ${{ env.NAMESPACE }} --create-namespace \
+          --set configs.secretName=argocd-secret \
+          --set server.service.type=LoadBalancer \
+          --set server.ingress.enabled=true \
+          --set controller.env\[0\].name=ARGOCD_SYNC_WAVE_DELAY \
+          --set controller.env\[0\].value=120s
+
+    - name: Deploy imagePullSecret
+      working-directory: ${{ env.CONTROL_PLANE_DIRECTORY }}
+      timeout-minutes: 7
+      run: |
+        helm upgrade --install ${{ env.IMAGE_SECRETS }} . \
+          --set imageCredentials.registry=ghcr.io \
+          --set imageCredentials.username=${{ secrets.GHCR_USERNAME }} \
+          --set imageCredentials.password=${{ secrets.GHCR_PASSWORD }} \
+          --set imageCredentials.email=${{ secrets.GHCR_EMAIL }}
+
+    - name: Setup ArgoCD CLI
+      uses: imajeetyadav/argocd-cli@v1
+      with:
+        version: v2.13.2 # Specify the desired version 
+      timeout-minutes: 7
+
+    - name: Login into ArgoCD
+      timeout-minutes: 7
+      run: |
+        sleep 120 # waiting for DNS to be propagated and argo deployment to be ready
+        until export ARGOCD_PASSWORD=$(kubectl -n ${{ env.NAMESPACE }} get secret argocd-initial-admin-secret \
+        -o jsonpath="{.data.password}" | base64 -d); do sleep ${{ env.DEFAULT_WATING_TIME }}; done
+        until export ARGOCD_SERVER=$(kubectl get svc argocd-server -n ${{ env.NAMESPACE }} \
+          --output=jsonpath='{.status.loadBalancer.ingress[0].hostname}'); do sleep ${{ env.DEFAULT_WATING_TIME }}; done
+        argocd login $ARGOCD_SERVER --username admin --password $ARGOCD_PASSWORD --insecure
+    
+    - name: Create Repo on ArgoCD
+      timeout-minutes: 7
+      run: |
+        until argocd repo add ${{ env.CONTROL_PLANE_ADDONS }} --type git \
+        --username ${{ secrets.GHCR_USERNAME }} --password ${{ secrets.GHCR_PASSWORD }} --insecure --name algo-trading-addons-repo --upsert; do sleep ${{ env.DEFAULT_WATING_TIME }}; done
+
+    - name: Create Project on ArgoCD
+      timeout-minutes: 7
+      run: | 
+        until argocd proj create ${{ env.PROJECT }} --src ${{ env.CONTROL_PLANE_ADDONS }} --dest "*,*" --upsert; do sleep ${{ env.DEFAULT_WATING_TIME }}; done
+        until argocd proj allow-cluster-resource ${{ env.PROJECT }} '*' '*' --list allow; do sleep ${{ env.DEFAULT_WATING_TIME }}; done
+        until argocd proj allow-namespace-resource ${{ env.PROJECT }} '*' '*' --list allow; do sleep ${{ env.DEFAULT_WATING_TIME }}; done
+        
+    - name: Create App on ArgoCD
+      timeout-minutes: 7
+      run: | 
+        until argocd app create ${{ env.APP }} --repo ${{ env.CONTROL_PLANE_ADDONS }} --dest-server https://kubernetes.default.svc \
+        --path base_chart --sync-policy "auto" --sync-retry-limit 5 --self-heal --upsert; do sleep ${{ env.DEFAULT_WATING_TIME }}; done

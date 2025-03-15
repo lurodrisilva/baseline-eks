@@ -1,0 +1,79 @@
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# .plan files
+*.plan
+*.plan.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude all .tfvars files, which are likely to contain sensitive data
+*.tfvars
+*.tfvars.json
+
+# Ignore override files as they are usually used to override resources locally
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# Ignore lock files
+.terraform.lock.hcl
+
+# Ignore macOS system files
+.DS_Store
+
+
+# Lockfiles for requirements.yaml
+requirements.lock
+
+# Packaged Helm charts
+*.tgz
+
+# Helm-specific files
+.helm/
+
+# Ignore Chart.lock files (optional, see note below)
+Chart.lock
+
+# macOS system files
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+# IDE-specific files
+.vscode/
+.idea/
+.project
+*.tmproj
+
+# Logs
+*.log
+
+# Environment variables
+.env
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+.*.lock.hcl
+*.lock.hcl
+
+*.plan
+.*.plan
+
+*.log

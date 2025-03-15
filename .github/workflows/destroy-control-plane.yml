@@ -1,0 +1,68 @@
+name: Destroy Control Plane
+
+on: workflow_call
+
+env:
+  AWS_REGION: sa-east-1
+  EKS_CLUSTER_NAME: algo-trading-plat
+  CLUSTER_DIRECTORY: cluster
+  CONTROL_PLANE_DIRECTORY: imagePullSecret
+  NAMESPACE: control-plane-system
+  RESOURCES_NAMESPACE: resources-system
+  CONTROL_PLANE_ADDONS: https://github.com/luciano-personal-org/cluster-baseline-deployment
+  DEFAULT_WATING_TIME: 2
+  PROJECT: control-plane-project
+  APP: algo-trading-addons
+  IMAGE_SECRETS: img-secret
+
+jobs:
+  deploy:
+    name: Destroy Control Plane
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v1
+      with:
+        version: 'v1.21.0'
+
+    - name: Update kubeconfig
+      working-directory: ${{ env.CLUSTER_DIRECTORY }}
+      run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}        
+
+    - name: Create AWS Secret in Kubernetes
+      working-directory: ${{ env.CLUSTER_DIRECTORY }}
+      run: |
+        if kubectl get namespace ${{ env.NAMESPACE }} &> /dev/null; then
+            echo "Namespace exists, deleting it"
+            kubectl delete namespace ${{ env.NAMESPACE }}
+        else
+            echo "Namespace does not exist" 
+        fi
+
+    - name: Install Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_version: 1.5.7
+
+    - name: Terraform Init
+      working-directory: ${{ env.CLUSTER_DIRECTORY }}
+      run: terraform init -upgrade
+
+    - name: Terraform Plan
+      working-directory: ${{ env.CLUSTER_DIRECTORY }}
+      run: terraform plan -destroy -out terraform.destroy.plan
+
+    - name: Terraform Destroy
+      working-directory: ${{ env.CLUSTER_DIRECTORY }}
+      run: terraform apply -auto-approve terraform.destroy.plan
