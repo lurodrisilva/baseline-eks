@@ -7,25 +7,25 @@
 variable "tag" {
   description = "Tag for resources"
   type        = string
-  default     = "algo-trading-plat"
+  default     = "eks-cluster-baseline"
 }
 
 variable "nodegroup_name" {
   description = "Nodegroup name for control plane"
   type        = string
-  default     = "algo-trading-plat-ng"
+  default     = "eks-cluster-baseline-ng"
 }
 
 variable "cluster_name" {
   description = "Custom Cluster Name"
   type        = string
-  default     = "algo-trading-plat"
+  default     = "eks-cluster-baseline"
 }
 
 variable "vpc_name" {
   description = "Custom VPC Name"
   type        = string
-  default     = "algo-trading-plat-vpc"
+  default     = "eks-cluster-baseline-vpc"
 }
 
 variable "private_subnets_cidr" {
@@ -49,5 +49,5 @@ variable "vpc_cidr_block" {
 variable "region" {
   description = "Region to deploy the resources"
   type        = string
-  default     = "sa-east-1"
+  default     = "us-east-1"
 }
