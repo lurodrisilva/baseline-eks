@@ -1,21 +1,21 @@
 name: Deploy Control Plane
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 env:
-  AWS_REGION: sa-east-1
-  EKS_CLUSTER_NAME: algo-trading-plat
+  AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: baseline-eks
   CLUSTER_DIRECTORY: cluster
   CONTROL_PLANE_DIRECTORY: imagePullSecret
   NAMESPACE: control-plane-system
   RESOURCES_NAMESPACE: resources-system
-  CONTROL_PLANE_ADDONS: https://github.com/luciano-personal-org/cluster-baseline-deployment
+  CONTROL_PLANE_ADDONS: https://github.com/lurodrisilva/gitops
   DEFAULT_WATING_TIME: 2
   PROJECT: control-plane-project
-  APP: algo-trading-addons
+  APP: baseline-eks-addons
   IMAGE_SECRETS: img-secret
 
 jobs:
