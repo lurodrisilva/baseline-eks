@@ -7,25 +7,25 @@
 variable "tag" {
   description = "Tag for resources"
   type        = string
-  default     = "eks-cluster-baseline"
+  default     = "eks-baseline"
 }
 
 variable "nodegroup_name" {
   description = "Nodegroup name for control plane"
   type        = string
-  default     = "eks-cluster-baseline-ng"
+  default     = "eks-baseline-ng"
 }
 
 variable "cluster_name" {
   description = "Custom Cluster Name"
   type        = string
-  default     = "eks-cluster-baseline"
+  default     = "eks-baseline"
 }
 
 variable "vpc_name" {
   description = "Custom VPC Name"
   type        = string
-  default     = "eks-cluster-baseline-vpc"
+  default     = "eks-baseline-vpc"
 }
 
 variable "private_subnets_cidr" {

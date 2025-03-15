@@ -55,7 +55,7 @@ data "aws_availability_zones" "available" {
 locals {
   name            = var.cluster_name
   cluster_version = "1.31"
-  region          = "sa-east-1"
+  region          = "us-east-1"
   node_group_name = var.nodegroup_name
 
   node_iam_role_name = module.eks_blueprints_addons.karpenter.node_iam_role_name
@@ -391,7 +391,7 @@ resource "helm_release" "aws_efs_csi_driver" {
 
   set {
     name  = "image.repository"
-    value = "602401143452.dkr.ecr.sa-east-1.amazonaws.com/eks/aws-efs-csi-driver"
+    value = "public.ecr.aws/efs-csi-driver/amazon/aws-efs-csi-driver"
   }
 
   set {
@@ -423,8 +423,8 @@ module "efs_csi_irsa_role" {
 // Configure the S3 bucket as the backend for Terraform
 terraform {
   backend "s3" {
-    bucket = "algo-trading-platform-state-sa"
-    key    = "control-plane/terraform.tfstate"
-    region = "sa-east-1"
+    bucket = "eks-cluster-baseline-state-us"
+    key    = "eks-cluster-baseline/terraform.tfstate"
+    region = "us-east-1"
   }
 }

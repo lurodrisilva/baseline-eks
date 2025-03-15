@@ -7,7 +7,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  EKS_CLUSTER_NAME: eks-cluster-baseline
+  EKS_CLUSTER_NAME: eks-baseline
   CLUSTER_DIRECTORY: cluster
   CONTROL_PLANE_DIRECTORY: imagePullSecret
   NAMESPACE: control-plane-system
